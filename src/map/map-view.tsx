@@ -1,13 +1,16 @@
 
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import mapboxgl, {
+  DataDrivenPropertyValueSpecification,
+  ExpressionSpecification,
+} from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import MapUploader from "./map-uploader";
 import LayerList, { LayerInfo } from "./layers/layer-list";
-import EditLayerModal from "./layers/layer-edit-name-modal";
+import EditLayerModal from "./layers";
 import { accessToken } from "../constants";
 
 mapboxgl.accessToken = accessToken;
@@ -23,46 +26,56 @@ export default function MapView() {
   const fillId = (id: string) => `fill-${id}`;
 
   /* ============================================================
-   *  buildFillColor
+   *  BUILD FILL COLOR (boolean + text categories + numeric)
    * ============================================================ */
-  const buildFillColor = (layer: LayerInfo) => {
-    const safeStr = (v: any, fallback: string) =>
-      typeof v === "string" && v.trim() !== "" ? v : fallback;
+  const buildFillColor = (
+    layer: LayerInfo
+  ): DataDrivenPropertyValueSpecification<string> => {
+    const expr: ExpressionSpecification = ["case"];
 
-    const expression: any[] = ["case"];
+    /* ========= BOOLEAN ========= */
+    for (const [field, cfg] of Object.entries(layer.booleanStyles)) {
+      if (!cfg.enabled) continue;
 
-    try {
-      const enabledBool = Object.entries(layer.booleanStyles || {}).filter(
-        ([, cfg]: any) => cfg && cfg.enabled
+      expr.push(
+        ["==", ["get", field], true],
+        cfg.trueColor,
+        ["==", ["get", field], false],
+        cfg.falseColor
       );
+    }
 
-      for (const [key, cfg] of enabledBool as [string, any][]) {
-        expression.push(["==", ["get", key], true], safeStr(cfg.trueColor, layer.color));
-        expression.push(["==", ["get", key], false], safeStr(cfg.falseColor, layer.color));
-      }
-    } catch { }
-
-    const validOps = ["==", "!=", ">", ">=", "<", "<="];
-    if (Array.isArray(layer.rules)) {
-      for (const rule of layer.rules) {
-        if (!rule) continue;
-        const { fieldA, op, fieldB, color } = rule as any;
-        if (!fieldA || !op || !fieldB) continue;
-        if (!validOps.includes(op)) continue;
-
-        expression.push([op, ["get", fieldA], ["get", fieldB]], safeStr(color, layer.color));
+    /* ========= TEXT CATEGORIES ========= */
+    if (layer.textField) {
+      for (const [value, color] of Object.entries(layer.categoryValues)) {
+        expr.push(
+          ["==", ["get", layer.textField], value],
+          color
+        );
       }
     }
 
-    expression.push(safeStr(layer.color, "#cccccc"));
+    /* ========= NUMERIC RULES ========= */
+    for (const r of layer.numericRules) {
+      expr.push(
+        [
+          r.op,
+          ["to-number", ["get", r.fieldA]],
+          ["to-number", ["get", r.fieldB]],
+        ],
+        r.color
+      );
+    }
 
-    if (expression.length < 4) return null;
+    // default
+    expr.push(layer.color);
 
-    return expression;
+    // si solo hay color base, no usar expresión
+    return expr.length > 2 ? expr : layer.color;
   };
 
   /* ============================================================
-   *  Inicializar Mapa
+   *  INIT MAP
    * ============================================================ */
   useEffect(() => {
     if (!mapRef.current) return;
@@ -78,177 +91,144 @@ export default function MapView() {
   }, []);
 
   /* ============================================================
-   *  Render dinámico de capas + popups
+   *  RENDER LAYERS
    * ============================================================ */
   useEffect(() => {
     if (!map.current) return;
     const m = map.current;
 
-    // limpiar capas viejas
     layers.forEach((layer) => {
       const sid = sourceId(layer.id);
       const lid = fillId(layer.id);
 
-      if (m.getLayer(lid)) m.removeLayer(lid);
-      if (m.getSource(sid)) m.removeSource(sid);
-      m.off("mousemove", lid);
-      m.off("mouseleave", lid);
-    });
+      if (!layer.visible) {
+        if (m.getLayer(lid)) m.removeLayer(lid);
+        if (m.getLayer(`${lid}-line`)) m.removeLayer(`${lid}-line`);
+        if (m.getSource(sid)) m.removeSource(sid);
+        return;
+      }
 
-    // agregar capas nuevas
-    layers.forEach((layer) => {
-      if (!layer.visible) return;
+      if (!m.getSource(sid)) {
+        m.addSource(sid, { type: "geojson", data: layer.data });
+      } else {
+        (m.getSource(sid) as mapboxgl.GeoJSONSource).setData(layer.data);
+      }
 
-      const sid = sourceId(layer.id);
-      const lid = fillId(layer.id);
+      const fillColor = buildFillColor(layer);
 
-      m.addSource(sid, { type: "geojson", data: layer.data });
+      if (!m.getLayer(lid)) {
+        m.addLayer({
+          id: lid,
+          type: "fill",
+          source: sid,
+          paint: {
+            "fill-color": fillColor,
+            "fill-opacity": layer.fillOpacity,
+          },
+        });
+      } else {
+        m.setPaintProperty(lid, "fill-color", fillColor);
+        m.setPaintProperty(lid, "fill-opacity", layer.fillOpacity);
+      }
 
-      const expr = buildFillColor(layer);
-      const paint: any = { "fill-opacity": 0.45 };
-      paint["fill-color"] = expr ?? layer.color ?? "#00bcd4";
+      const lineId = `${lid}-line`;
 
-      m.addLayer({
-        id: lid,
-        type: "fill",
-        source: sid,
-        paint,
-      });
-
-      // === POPUP GLOBAL ===
-      let hoveredPopup: mapboxgl.Popup | null = null;
-
-      const handleMove = (e: any) => {
-        m.getCanvas().style.cursor = "pointer";
-
-        if (hoveredPopup) {
-          hoveredPopup.remove();
-          hoveredPopup = null;
-        }
-
-        const feature = e.features?.[0];
-        const props = feature?.properties || {};
-
-        const html = (layer.popupTemplate || "").replace(
-          /\{(.*?)\}/g,
-          (_, key) => props[key] ?? ""
-        );
-
-        hoveredPopup = new mapboxgl.Popup({
-          closeButton: false,
-          closeOnClick: false,
-          offset: 8,
-        })
-          .setLngLat(e.lngLat)
-          .setHTML(html)
-          .addTo(m);
-      };
-
-      const handleLeave = () => {
-        m.getCanvas().style.cursor = "";
-        if (hoveredPopup) {
-          hoveredPopup.remove();
-          hoveredPopup = null;
-        }
-      };
-
-      m.on("mousemove", lid, handleMove);
-      m.on("mouseleave", lid, handleLeave);
+      if (!m.getLayer(lineId)) {
+        m.addLayer({
+          id: lineId,
+          type: "line",
+          source: sid,
+          paint: {
+            "line-color": layer.strokeColor,
+            "line-width": layer.strokeWidth,
+            "line-opacity": layer.strokeOpacity,
+          },
+        });
+      }
     });
   }, [layers]);
 
   /* ============================================================
-   *  Fit GeoJSON
+   *  LOAD GEOJSON
    * ============================================================ */
-  const fitToGeoJSON = (geojson: any) => {
-    if (!map.current) return;
-    const m = map.current;
-    const bounds = new mapboxgl.LngLatBounds();
-
-    const add = (coords: any) => {
-      if (typeof coords[0] === "number") bounds.extend(coords);
-      else coords.forEach(add);
-    };
-
-    try {
-      geojson.features.forEach((f: any) => add(f.geometry.coordinates));
-      if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 40, duration: 900 });
-    } catch { }
-  };
-
-  /* ============================================================
-   *  Load GeoJSON
-   * ============================================================ */
-  const handleLoad = (json: any) => {
-    const id = crypto.randomUUID();
-
+  const handleLoad = (json: GeoJSON.FeatureCollection) => {
     const props = json.features?.[0]?.properties ?? {};
-    const keys = Object.keys(props);
-    const bools = keys.filter((k) => typeof props[k] === "boolean");
+    const fields = Object.keys(props);
+    const bools = fields.filter((k) => typeof props[k] === "boolean");
 
     const newLayer: LayerInfo = {
-      id,
-      name: json.name || `Capa ${layers.length + 1}`,
+      id: crypto.randomUUID(),
+      name: `Capa ${layers.length + 1}`,
       visible: true,
-      color: "#00bcd4",
+
       data: json,
-      fields: keys,
+      fields,
+
+      color: "#00bcd4",
+      fillOpacity: 0.45,
+
+      textField: null,
+      categoryValues: {},
+
       booleanStyles: Object.fromEntries(
         bools.map((b) => [
           b,
           { enabled: false, trueColor: "#00ff00", falseColor: "#ff0000" },
         ])
       ),
-      rules: [],
-      popupTemplate: `
-        <div style="font-family: system-ui; font-size: 14px;">
-          <h3 style="margin:0 0 6px; font-weight:600;">{name}</h3>
-          <p>{description}</p>
-        </div>
-      `,
+
+      numericRules: [],
+
+      strokeColor: "#000",
+      strokeWidth: 1,
+      strokeOpacity: 1,
+      strokeRules: [],
+
+      popupTemplate: "<b>{name}</b>",
     };
 
     setLayers((p) => [...p, newLayer]);
-    fitToGeoJSON(json);
   };
 
   /* ============================================================
-   *  CRUD CAPAS
+   *  CRUD
    * ============================================================ */
-  const toggleVisibility = (id: string) =>
-    setLayers((p) => p.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)));
-
-  const deleteLayer = (id: string) => {
-    if (!map.current) return;
-
-    const m = map.current;
-    const sid = sourceId(id);
-    const lid = fillId(id);
-
-    if (m.getLayer(lid)) m.removeLayer(lid);
-    if (m.getSource(sid)) m.removeSource(sid);
-
-    setLayers((p) => p.filter((l) => l.id !== id));
-  };
-
   const saveLayerConfig = (id: string, cfg: Partial<LayerInfo>) =>
     setLayers((p) => p.map((l) => (l.id === id ? { ...l, ...cfg } : l)));
 
-  const focusLayer = (layer: LayerInfo) => fitToGeoJSON(layer.data);
+  /* ============================================================
+   *  LEGEND
+   * ============================================================ */
+  const legendEntries = useMemo(() => {
+    return layers
+      .filter((l) => l.visible && l.textField)
+      .map((l) => ({
+        id: l.id,
+        name: l.name,
+        items: Object.entries(l.categoryValues).map(([v, c]) => ({
+          value: v,
+          color: c,
+        })),
+      }));
+  }, [layers]);
 
   /* ============================================================
-   *  UI (CORRECTO)
+   *  UI
    * ============================================================ */
   return (
-    <div className="w-full h-screen relative overflow-hidden">
+    <div className="w-full h-screen relative">
       <MapUploader onLoad={handleLoad} />
 
       <LayerList
         layers={layers}
-        onToggle={toggleVisibility}
-        onDelete={deleteLayer}
+        onToggle={(id) =>
+          setLayers((p) =>
+            p.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l))
+          )
+        }
         onEdit={setEditing}
-        onFocus={focusLayer}
+        onDelete={(id) => setLayers((p) => p.filter((l) => l.id !== id))}
+        onFocus={() => { }}
       />
 
       <EditLayerModal
@@ -257,6 +237,25 @@ export default function MapView() {
         onClose={() => setEditing(null)}
         onSave={saveLayerConfig}
       />
+
+      {legendEntries.length > 0 && (
+        <div className="absolute right-4 bottom-4 bg-white p-3 rounded-xl shadow">
+          {legendEntries.map((g) => (
+            <div key={g.id}>
+              <div className="font-semibold text-sm">{g.name}</div>
+              {g.items.map((i) => (
+                <div key={i.value} className="flex items-center gap-2 text-sm">
+                  <div
+                    className="w-4 h-3 rounded"
+                    style={{ background: i.color }}
+                  />
+                  {i.value}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div ref={mapRef} className="w-full h-full" />
     </div>

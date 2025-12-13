@@ -1,29 +1,104 @@
 
 "use client";
 
-import React from "react";
 import { Eye, EyeOff, Pencil, Trash2, Focus } from "lucide-react";
+
+
+// ===============================
+// Layer Types (FINAL)
+// ===============================
+
+export type NumericOperator =
+  | "=="
+  | "!="
+  | ">"
+  | ">="
+  | "<"
+  | "<=";
+
+export interface StrokeRule {
+  id: string;
+  field: string;
+  op: NumericOperator;
+  value: string | number;
+  color: string;
+  width: number;
+  opacity: number;
+}
+
+export interface NumericRule {
+  fieldA: string;
+  op: NumericOperator;
+  fieldB: string;
+  color: string;
+}
+
+export interface StrokeRule {
+  id: string;
+  field: string;
+  op: NumericOperator;
+  value: string | number;
+  color: string;
+  width: number;
+  opacity: number;
+}
+
+export interface BooleanStyle {
+  enabled: boolean;
+  trueColor: string;
+  falseColor: string;
+}
+
+// ===============================
+// LayerInfo (FINAL)
+// ===============================
 
 export interface LayerInfo {
   id: string;
   name: string;
-  color: string;
   visible: boolean;
 
-  data: any;
-
-  /* Campos visibles en el popup */
+  // ======================
+  // DATA
+  // ======================
+  data: GeoJSON.FeatureCollection;
   fields: string[];
 
-  /* Estilos condicionales */
-  booleanStyles: {
-    [key: string]: {
-      enabled: boolean;
-      color: string;
-    };
-  };
-}
+  // ======================
+  // FILL
+  // ======================
+  color: string;
+  fillOpacity: number;
 
+  // ======================
+  // TEXT CATEGORIES
+  // ======================
+  textField: string | null;
+  categoryValues: Record<string, string>;
+
+  // ======================
+  // BOOLEAN RULES
+  // ======================
+  booleanStyles: Record<string, BooleanStyle>;
+
+  // ======================
+  // NUMERIC RULES
+  // ======================
+  numericRules: NumericRule[];
+
+  // ======================
+  // STROKE
+  // ======================
+  strokeColor: string;
+  strokeWidth: number;
+  strokeOpacity: number;
+  strokeRules: StrokeRule[];
+
+  // ======================
+  // POPUP
+  // ======================
+  popupTemplate: string;
+}
 interface Props {
   layers: LayerInfo[];
   onToggle: (id: string) => void;
