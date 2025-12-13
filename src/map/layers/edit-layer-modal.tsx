@@ -165,12 +165,8 @@ export default function EditLayerModal({
             <NumericRulesTab
               layer={local}
               rules={local.numericRules ?? []}
-              setRules={(
-                next: (prev: LayerInfo["numericRules"]) => LayerInfo["numericRules"]
-              ) =>
-                update({
-                  numericRules: next(local.numericRules ?? []),
-                })
+              setRules={(next) =>
+                update({ numericRules: next(local.numericRules ?? []) })
               }
             />
           </TabsContent>
