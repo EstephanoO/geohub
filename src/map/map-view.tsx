@@ -1,6 +1,7 @@
+
 // @ts-nocheck
 //
-// MapView.tsx — FINAL
+// MapView.tsx — FINAL (SIN LOCAL STORAGE)
 // ---------------------------------------------
 "use client";
 
@@ -15,8 +16,6 @@ import { accessToken } from "../constants";
 
 mapboxgl.accessToken = accessToken;
 
-const STORAGE_KEY = "map_layers_v1";
-
 export default function MapView() {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -28,41 +27,27 @@ export default function MapView() {
   const fillId = (id: string) => `fill-${id}`;
 
   /* ============================================================
-   *  LOCAL STORAGE
-   * ============================================================ */
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setLayers(JSON.parse(saved));
-    } catch { }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(layers));
-    } catch { }
-  }, [layers]);
-
-  /* ============================================================
-   *  BUILD FILL COLOR (categorías + fallback)
+   *  BUILD FILL COLOR (CATEGORÍAS + FALLBACK)
    * ============================================================ */
   const buildFillColor = (layer: LayerInfo) => {
-    const expr: any[] = ["case"];
-
-    // Categorías de texto
     if (
       layer.textCategories &&
       layer.textCategories.field &&
-      layer.textCategories.values
+      layer.textCategories.values &&
+      Object.keys(layer.textCategories.values).length > 0
     ) {
+      const expr: any[] = ["case"];
       const { field, values } = layer.textCategories;
-      for (const [value, color] of Object.entries(values)) {
+
+      Object.entries(values).forEach(([value, color]) => {
         expr.push(["==", ["get", field], value], color);
-      }
+      });
+
+      expr.push(layer.color || "#cccccc");
+      return expr;
     }
 
-    expr.push(layer.color || "#cccccc");
-    return expr.length > 2 ? expr : layer.color;
+    return layer.color || "#cccccc";
   };
 
   /* ============================================================
@@ -82,83 +67,114 @@ export default function MapView() {
   }, []);
 
   /* ============================================================
-   *  RENDER LAYERS
+   *  RENDER & UPDATE LAYERS
    * ============================================================ */
   useEffect(() => {
     if (!map.current) return;
     const m = map.current;
 
-    // limpiar todo
-    layers.forEach((l) => {
-      const sid = sourceId(l.id);
-      const lid = fillId(l.id);
-      try {
-        if (m.getLayer(`${lid}-line`)) m.removeLayer(`${lid}-line`);
-        if (m.getLayer(lid)) m.removeLayer(lid);
-        if (m.getSource(sid)) m.removeSource(sid);
-      } catch { }
-    });
-
     layers.forEach((layer) => {
-      if (!layer.visible) return;
-
       const sid = sourceId(layer.id);
       const lid = fillId(layer.id);
 
-      m.addSource(sid, {
-        type: "geojson",
-        data: layer.data,
-      });
+      /* ---------- SOURCE ---------- */
+      if (!m.getSource(sid)) {
+        m.addSource(sid, {
+          type: "geojson",
+          data: layer.data,
+        });
+      } else {
+        (m.getSource(sid) as mapboxgl.GeoJSONSource).setData(layer.data);
+      }
 
-      m.addLayer({
-        id: lid,
-        type: "fill",
-        source: sid,
-        paint: {
-          "fill-color": buildFillColor(layer),
-          "fill-opacity": layer.fillOpacity ?? 0.45,
-        },
-      });
+      /* ---------- LAYERS ---------- */
+      if (!m.getLayer(lid)) {
+        m.addLayer({
+          id: lid,
+          type: "fill",
+          source: sid,
+          paint: {
+            "fill-color": buildFillColor(layer),
+            "fill-opacity": layer.fillOpacity ?? 0.45,
+          },
+        });
 
-      m.addLayer({
-        id: `${lid}-line`,
-        type: "line",
-        source: sid,
-        paint: {
-          "line-color": layer.strokeColor ?? "#000",
-          "line-width": layer.strokeWidth ?? 1,
-          "line-opacity": layer.strokeOpacity ?? 1,
-        },
-      });
+        m.addLayer({
+          id: `${lid}-line`,
+          type: "line",
+          source: sid,
+          paint: {
+            "line-color": layer.strokeColor ?? "#000",
+            "line-width": layer.strokeWidth ?? 1,
+            "line-opacity": layer.strokeOpacity ?? 1,
+          },
+        });
 
-      // Popup hover (1 solo por capa)
-      let popup: mapboxgl.Popup | null = null;
+        // POPUP (registrado una sola vez)
+        let popup: mapboxgl.Popup | null = null;
 
-      m.on("mousemove", lid, (e) => {
-        m.getCanvas().style.cursor = "pointer";
-        popup?.remove();
+        m.on("mousemove", lid, (e) => {
+          m.getCanvas().style.cursor = "pointer";
+          popup?.remove();
 
-        const props = e.features?.[0]?.properties || {};
-        const html = (layer.popupTemplate || "").replace(
-          /\{(.*?)\}/g,
-          (_, k) => props[k] ?? ""
-        );
+          const props = e.features?.[0]?.properties || {};
+          const html = (layer.popupTemplate || "").replace(
+            /\{(.*?)\}/g,
+            (_, k) => props[k] ?? ""
+          );
 
-        popup = new mapboxgl.Popup({
-          closeButton: false,
-          closeOnClick: false,
-          offset: 8,
-        })
-          .setLngLat(e.lngLat)
-          .setHTML(html)
-          .addTo(m);
-      });
+          popup = new mapboxgl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 8,
+          })
+            .setLngLat(e.lngLat)
+            .setHTML(html)
+            .addTo(m);
+        });
 
-      m.on("mouseleave", lid, () => {
-        m.getCanvas().style.cursor = "";
-        popup?.remove();
-        popup = null;
-      });
+        m.on("mouseleave", lid, () => {
+          m.getCanvas().style.cursor = "";
+          popup?.remove();
+          popup = null;
+        });
+      }
+
+      /* ---------- UPDATE STYLES (🔥 CLAVE) ---------- */
+      m.setPaintProperty(lid, "fill-color", buildFillColor(layer));
+      m.setPaintProperty(
+        lid,
+        "fill-opacity",
+        layer.fillOpacity ?? 0.45
+      );
+
+      m.setPaintProperty(
+        `${lid}-line`,
+        "line-color",
+        layer.strokeColor ?? "#000"
+      );
+      m.setPaintProperty(
+        `${lid}-line`,
+        "line-width",
+        layer.strokeWidth ?? 1
+      );
+      m.setPaintProperty(
+        `${lid}-line`,
+        "line-opacity",
+        layer.strokeOpacity ?? 1
+      );
+
+      /* ---------- VISIBILITY ---------- */
+      m.setLayoutProperty(
+        lid,
+        "visibility",
+        layer.visible ? "visible" : "none"
+      );
+      m.setLayoutProperty(
+        `${lid}-line`,
+        "visibility",
+        layer.visible ? "visible" : "none"
+      );
     });
   }, [layers]);
 
@@ -172,10 +188,13 @@ export default function MapView() {
     const extend = (c: any) =>
       typeof c[0] === "number" ? bounds.extend(c) : c.forEach(extend);
 
-    geojson.features?.forEach((f: any) => extend(f.geometry.coordinates));
+    geojson.features?.forEach((f: any) =>
+      extend(f.geometry.coordinates)
+    );
 
-    if (!bounds.isEmpty())
+    if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, { padding: 40, duration: 800 });
+    }
   };
 
   /* ============================================================
@@ -206,7 +225,7 @@ export default function MapView() {
       `,
     };
 
-    setLayers((p) => [...p, layer]);
+    setLayers((prev) => [...prev, layer]);
     fitToGeoJSON(json);
   };
 
@@ -225,7 +244,7 @@ export default function MapView() {
     setLayers((p) => p.filter((l) => l.id !== id));
 
   /* ============================================================
-   *  LEYENDA (CLAVE)
+   *  LEYENDA
    * ============================================================ */
   const legendEntries = useMemo(() => {
     return layers
@@ -233,7 +252,6 @@ export default function MapView() {
         (l) =>
           l.visible &&
           l.textCategories &&
-          l.textCategories.field &&
           l.textCategories.values &&
           Object.keys(l.textCategories.values).length > 0
       )
@@ -268,7 +286,6 @@ export default function MapView() {
         onSave={saveLayerConfig}
       />
 
-      {/* LEYENDA */}
       {legendEntries.length > 0 && (
         <div className="absolute bottom-4 right-4 z-40 bg-white/95 border rounded-xl shadow-lg p-3 max-w-xs">
           <div className="text-sm font-semibold mb-2">Leyenda</div>
