@@ -42,6 +42,7 @@ export class QMLStyleParser {
 
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
+      if (!rule) continue;
 
       const safeSymbolizers =
         rule.symbolizers?.filter(

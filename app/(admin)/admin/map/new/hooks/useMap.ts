@@ -111,11 +111,8 @@ export function useMapLibre(
       anchor: "bottom",
       offset: [0, -14],
       maxWidth: "480px",
-      className: `map-popup popup-${popupTemplate}`,
+      className: `map-popup popup-moderno`,
     });
-
-    // Aplicar estilos específicos del template
-    applyPopupStyles(popupTemplate);
 
     mapRef.current = map;
 
@@ -124,7 +121,43 @@ export function useMapLibre(
       map.remove();
       mapRef.current = null;
     };
-  }, [containerRef, popupTemplate]);
+  }, [containerRef]);
+
+  /* ---------- POPUP TEMPLATE STYLES ---------- */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    
+    // Actualizar el className del popup recreándolo si es necesario
+    if (popupRef.current) {
+      const currentLngLat = popupRef.current.getLngLat();
+      const currentContent = popupRef.current._content;
+      
+      // Recrear el popup con nuevo className
+      popupRef.current.remove();
+      popupRef.current = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        closeOnMove: false,
+        anchor: "bottom",
+        offset: [0, -14],
+        maxWidth: "480px",
+        className: `map-popup popup-${popupTemplate}`,
+      });
+      
+      // Restaurar posición y contenido si existía
+      if (currentLngLat && currentContent) {
+        popupRef.current.setLngLat(currentLngLat).setDOMContent(currentContent).addTo(mapRef.current);
+      }
+    }
+    
+    // Aplicar estilos específicos del template SIN reiniciar el mapa
+    try {
+      applyPopupStyles(popupTemplate);
+    } catch (error) {
+      console.error('Error applying popup styles:', error);
+      // No bloquear el mapa si hay error en los estilos
+    }
+  }, [popupTemplate]);
 
   /* ---------- DATA & INTERACTION ---------- */
   useEffect(() => {
@@ -143,6 +176,30 @@ export function useMapLibre(
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 
     /* Add source */
+    if (!map.isStyleLoaded()) {
+      // Escuchar el evento style.load y reintentar una vez
+      const handleStyleLoad = () => {
+        if (mapRef.current && geoJson) {
+          const map = mapRef.current;
+          const sourceId = sourceIdRef.current;
+          
+          if (map.isStyleLoaded() && !map.getSource(sourceId)) {
+            map.addSource(sourceId, {
+              type: "geojson",
+              data: geoJson,
+            });
+            
+            qmlStyle
+              ? applyQMLStyles(map, sourceId, qmlStyle)
+              : applyDefaultStyles(map, sourceId);
+          }
+        }
+      };
+      
+      map.once('style.load', handleStyleLoad);
+      return;
+    }
+    
     map.addSource(sourceId, {
       type: "geojson",
       data: geoJson,
@@ -252,6 +309,7 @@ export function useMapLibre(
       if (!e.features?.length) return;
 
       const feature = e.features[0];
+      if (!feature) return;
       const id = feature.id ?? JSON.stringify(feature.properties);
 
       if (hoveredId !== null && hoveredId !== id) {
@@ -307,7 +365,7 @@ export function useMapData(initialData?: Partial<MapData>) {
     geoJson: undefined,
     qml: undefined,
     isVisible: true,
-    createdDate: new Date().toISOString().split("T")[0],
+    createdDate: new Date().toISOString().split("T")[0] || '',
     ...initialData,
   });
 
@@ -323,7 +381,7 @@ export function useMapData(initialData?: Partial<MapData>) {
       geoJson: undefined,
       qml: undefined,
       isVisible: true,
-      createdDate: new Date().toISOString().split("T")[0],
+createdDate: new Date().toISOString().split("T")[0] || '',
     });
 
   return { mapData, setMapData, updateMapData, resetMapData };

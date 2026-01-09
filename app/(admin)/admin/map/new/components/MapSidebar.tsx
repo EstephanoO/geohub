@@ -2,32 +2,32 @@
 
 import { useState } from "react";
 import { MapData, FileUploadHandler } from "../types";
-import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { PopupConfigModal } from "./PopupConfigModal";
 import {
-  Save,
-  Eye,
-  EyeOff,
-  X,
+  ArrowLeft,
   Plus,
+  X,
   Upload,
   Globe,
-  Layers,
+  Eye,
+  EyeOff,
   CheckCircle,
   XCircle,
-  ArrowLeft,
   FileText,
   Palette,
   Settings,
-  Sparkles
+  Sparkles,
+  Save,
+  Trash2,
 } from "lucide-react";
+
+import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Badge } from "@/app/components/ui/badge";
+import { Switch } from "@/app/components/ui/switch";
+import { PopupConfigModal } from "./PopupConfigModal";
+import { FileDropzone } from "./FileDropzone";
 
 interface MapSidebarProps {
   mapData: MapData;
@@ -39,384 +39,269 @@ interface MapSidebarProps {
   qmlStyle?: any;
   qmlLoading?: boolean;
   qmlError?: string | null;
+  selectedPopupTemplate?: string;
+  onPopupTemplateChange?: (template: string) => void;
 }
 
-export function MapSidebar({
-  mapData,
-  onMapDataChange,
-  onGeoJsonUpload,
-  onQmlUpload,
-  onSaveMap,
-  onCancel,
-  qmlStyle,
-  qmlLoading,
-  qmlError,
-}: MapSidebarProps) {
+export function MapSidebar(props: MapSidebarProps) {
+  const {
+    mapData,
+    onMapDataChange,
+    onGeoJsonUpload,
+    onQmlUpload,
+    onSaveMap,
+    onCancel,
+    qmlStyle,
+    qmlLoading,
+    qmlError,
+    selectedPopupTemplate = "moderno",
+    onPopupTemplateChange = () => {},
+  } = props;
+
   const [tagInput, setTagInput] = useState("");
   const [showPopupConfig, setShowPopupConfig] = useState(false);
-  const [selectedPopupTemplate, setSelectedPopupTemplate] = useState("moderno");
 
   const addTag = () => {
     if (tagInput.trim() && !mapData.tags.includes(tagInput.trim())) {
-      onMapDataChange({
-        tags: [...mapData.tags, tagInput.trim()],
-      });
+      onMapDataChange({ tags: [...mapData.tags, tagInput.trim()] });
       setTagInput("");
     }
   };
 
-  const removeTag = (tagToRemove: string) => {
-    onMapDataChange({
-      tags: mapData.tags.filter((tag) => tag !== tagToRemove),
-    });
-  };
-
-  const handleClearGeoJson = () => {
-    onMapDataChange({ geoJson: undefined });
-  };
-
   return (
     <>
-      <div className="w-full lg:w-96 bg-background border-r border-border/40 h-screen overflow-y-auto">
-        <div className="p-6 space-y-6">
+      <aside className="w-full lg:w-[360px] h-screen overflow-y-auto bg-black text-neutral-200 border-r border-neutral-800">
+        <div className="px-5 py-4 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-foreground">Crear Mapa</h1>
-              <p className="text-sm text-muted-foreground">Configura tu mapa geográfico</p>
+          <header className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight">
+                Crear mapa
+              </h1>
+              <p className="text-xs text-neutral-400">
+                Configuración geográfica
+              </p>
             </div>
-            <Button variant="ghost" size="icon-sm" onClick={onCancel}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </div> 
+          </header>
 
-          {/* Basic Information Card */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                <Globe className="h-5 w-5 text-primary" />
-                <span>Información Básica</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="mapName" className="text-sm font-medium">
-                  Nombre del Mapa *
-                </Label>
+          {/* Información básica */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+              <Globe className="w-4 h-4 text-blue-500" />
+              Información básica
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mapName">Nombre *</Label>
+              <Input
+                id="mapName"
+                value={mapData.name}
+                onChange={(e) => onMapDataChange({ name: e.target.value })}
+                placeholder="Ej. Mapa de zonas"
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mapDescription">Descripción</Label>
+              <Textarea
+                id="mapDescription"
+                rows={3}
+                value={mapData.description}
+                onChange={(e) =>
+                  onMapDataChange({ description: e.target.value })
+                }
+                className="resize-none"
+              />
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Etiquetas</Label>
+              <div className="flex gap-2">
                 <Input
-                  id="mapName"
-                  value={mapData.name}
-                  onChange={(e) => onMapDataChange({ name: e.target.value })}
-                  placeholder="Ej: Mapa de la Ciudad"
-                  className="h-11"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTag()}
+                  placeholder="Agregar etiqueta"
+                  className="h-10"
                 />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={addTag}
+                  aria-label="Agregar etiqueta"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="mapDescription" className="text-sm font-medium">
-                  Descripción
-                </Label>
-                <Textarea
-                  id="mapDescription"
-                  value={mapData.description}
-                  onChange={(e) => onMapDataChange({ description: e.target.value })}
-                  rows={3}
-                  placeholder="Describe el contenido y propósito de este mapa..."
-                  className="resize-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tagInput" className="text-sm font-medium">
-                  Etiquetas
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="tagInput"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && addTag()}
-                    placeholder="Agregar etiqueta..."
-                    className="flex-1 h-11"
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={addTag}
-                    variant="outline"
-                    size="icon"
-                    className="h-11 w-11"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {mapData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {mapData.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="flex items-center gap-1 pr-1 hover:bg-accent"
-                      >
-                        {tag}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => removeTag(tag)}
-                          className="h-4 w-4 hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Visibility Settings */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                <Eye className="h-5 w-5 text-accent" />
-                <span>Visibilidad</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="visibility" className="text-sm font-medium">
-                    Visible para invitados
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Permitir que cualquier persona pueda ver este mapa
-                  </p>
-                </div>
-                <Switch
-                  id="visibility"
-                  checked={mapData.isVisible}
-                  onCheckedChange={(checked: boolean) => onMapDataChange({ isVisible: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-center p-4 rounded-lg border border-border/50 bg-muted/20">
-                <div className="flex items-center space-x-2 text-sm">
-                  {mapData.isVisible ? (
-                    <>
-                      <Eye className="h-4 w-4 text-accent" />
-                      <span className="text-accent font-medium">Mapa Público</span>
-                    </>
-                  ) : (
-                    <>
-                      <EyeOff className="h-4 w-4 text-primary" />
-                      <span className="text-primary font-medium">Mapa Privado</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* File Uploads */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                <Upload className="h-5 w-5 text-primary" />
-                <span>Archivos de Datos</span>
-              </CardTitle>
-              <CardDescription>
-                Sube tus archivos GeoJSON y estilos QML
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="geoJsonFile" className="text-sm font-medium">
-                    GeoJSON *
-                  </Label>
-                  {mapData.geoJson && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearGeoJson}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2"
+              {mapData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {mapData.tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      className="flex items-center gap-1 border-neutral-700 hover:border-yellow-500"
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Limpiar
-                    </Button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Input
-                    id="geoJsonFile"
-                    type="file"
-                    accept=".json,.geojson"
-                    onChange={onGeoJsonUpload}
-                    className="h-11 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Formatos soportados: .json, .geojson (máx. 10MB)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="qmlFile" className="text-sm font-medium">
-                  QML (Opcional)
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="qmlFile"
-                    type="file"
-                    accept=".qml"
-                    onChange={onQmlUpload}
-                    className="h-11 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-accent file:text-accent-foreground hover:file:bg-accent/90"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Formatos soportados: .qml (máx. 5MB)
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Status */}
-          <Card variant="glass">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                <Layers className="h-5 w-5 text-primary" />
-                <span>Estado del Mapa</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">GeoJSON</span>
-                </div>
-                {mapData.geoJson ? (
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="default" className="text-xs">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      {mapData.geoJson.type === 'FeatureCollection' ? `${mapData.geoJson.features?.length || 0} features` : mapData.geoJson.type}
+                      {tag}
+                      <button
+                        type="button"
+                        aria-label={`Eliminar etiqueta ${tag}`}
+                        onClick={() =>
+                          onMapDataChange({
+                            tags: mapData.tags.filter((t) => t !== tag),
+                          })
+                        }
+                        className="ml-1 rounded hover:text-red-400"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </Badge>
-                  </div>
-                ) : (
-                  <Badge variant="outline" className="text-xs text-destructive">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    No cargado
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-                <div className="flex items-center space-x-2">
-                  <Palette className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">QML</span>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2">
-                  {qmlLoading ? (
-                    <Badge variant="outline" className="text-xs">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
-                      Cargando...
-                    </Badge>
-                  ) : qmlError ? (
-                    <Badge variant="destructive" className="text-xs">
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Error
-                    </Badge>
-                  ) : mapData.qml ? (
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="default" className="text-xs">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Cargado
-                      </Badge>
-                      {qmlStyle && (
-                        <div className="text-xs text-muted-foreground">
-                          {Object.keys(qmlStyle).length} estilos
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Opcional
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-                <div className="flex items-center space-x-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Visibilidad</span>
-                </div>
-                <Badge variant={mapData.isVisible ? "secondary" : "outline"} className="text-xs">
-                  {mapData.isVisible ? "🌐 Público" : "🔒 Privado"}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Popup Settings */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <span>Personalización del Popup</span>
-              </CardTitle>
-              <CardDescription>
-                Configura cómo se ven los popup al hacer hover
-              </CardDescription>
-            </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground mb-2">
-              Template actual: <span className="font-medium">{selectedPopupTemplate}</span>
+              )}
             </div>
-            <Button 
-              onClick={() => setShowPopupConfig(true)}
-              variant="outline"
-              className="w-full"
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Configurar Popup Profesional
-            </Button>
-          </CardContent>
-          </Card>
+          </section>
+
+          {/* Visibilidad */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="visibility">Visibilidad pública</Label>
+                <p className="text-xs text-neutral-400">
+                  Permite que otros vean este mapa
+                </p>
+              </div>
+              <Switch
+                id="visibility"
+                checked={mapData.isVisible}
+                onCheckedChange={(v) => onMapDataChange({ isVisible: v })}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              {mapData.isVisible ? (
+                <>
+                  <Eye className="w-4 h-4 text-blue-500" />
+                  <span className="text-blue-400">Mapa público</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-4 h-4 text-neutral-400" />
+                  <span className="text-neutral-400">Mapa privado</span>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Archivos */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Upload className="w-4 h-4 text-blue-500" />
+              Archivos
+            </div>
+
+            {/* GeoJSON */}
+            <div className="space-y-2">
+              <Label>GeoJSON *</Label>
+
+              <FileDropzone
+                label="GeoJSON"
+                accept=".json,.geojson"
+                loaded={!!mapData.geoJson}
+                helperText="Archivo .geojson o .json"
+                onFileSelect={(file) =>
+                  onGeoJsonUpload({
+                    target: { files: [file] },
+                  } as any)
+                }
+              />
+              {mapData.geoJson ? (
+                <Badge className="bg-yellow-500/10 text-yellow-400">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Cargado
+                </Badge>
+              ) : (
+                <Badge variant="outline">
+                  <XCircle className="w-3 h-3 mr-1" />
+                  No cargado
+                </Badge>
+              )}
+            </div>
+
+            {/* QML */}
+            <div className="space-y-2">
+              <Label>QML (opcional)</Label>
+              <FileDropzone
+                label="Estilos QML (opcional)"
+                accept=".qml"
+                loaded={!!mapData.qml && !qmlError}
+                loading={qmlLoading || false}
+                error={!!qmlError}
+                helperText="Archivo .qml desde QGIS"
+                onFileSelect={(file) =>
+                  onQmlUpload({
+                    target: { files: [file] },
+                  } as any)
+                }
+              />
+              {qmlLoading && <Badge variant="outline">Cargando…</Badge>}
+              {qmlError && <Badge variant="destructive">Error</Badge>}
+              {mapData.qml && !qmlError && (
+                <Badge className="bg-blue-500/10 text-blue-400">
+                  <Palette className="w-3 h-3 mr-1" />
+                  Estilos cargados
+                </Badge>
+              )}
+            </div>
+          </section>
+
+          {/* Popup */}
+          <section className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="w-4 h-4 text-yellow-500" />
+              Popup
+            </div>
+            <div className="space-y-2">
+              <Button variant="outline" onClick={() => setShowPopupConfig(true)} className="w-full justify-start">
+                <Settings className="w-4 h-4 mr-2" />
+                Configurar popup
+              </Button>
+              <div className="text-xs text-muted-foreground px-1">
+                Template actual: <span className="font-medium">{selectedPopupTemplate}</span>
+              </div>
+            </div>
+          </section>
 
           {/* Actions */}
-          <div className="space-y-3 pt-4">
-            <Button 
-              onClick={onSaveMap}
-              disabled={!mapData.name.trim() || !mapData.geoJson}
+          <div className="pt-4 space-y-3">
+            <Button
               variant="gold"
+              disabled={!mapData.name || !mapData.geoJson}
+              onClick={onSaveMap}
             >
-              <Save className="mr-2 h-4 w-4" />
-              Guardar Mapa
+              <Save className="w-4 h-4 mr-2" />
+              Guardar mapa
             </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={onCancel}
-              className="w-full h-12"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al Panel
+
+            <Button variant="outline" onClick={onCancel}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver
             </Button>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Popup Configuration Modal */}
       <PopupConfigModal
         isOpen={showPopupConfig}
         onClose={() => setShowPopupConfig(false)}
         selectedTemplate={selectedPopupTemplate}
-        onTemplateChange={setSelectedPopupTemplate}
+        onTemplateChange={onPopupTemplateChange}
+        mapId={mapData.id}
       />
     </>
   );
 }
+

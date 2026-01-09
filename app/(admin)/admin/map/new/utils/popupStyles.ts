@@ -31,9 +31,21 @@ export class PopupStyleManager {
       return;
     }
 
-    this.removeStyles();
-    this.createStyleElement();
-    this.injectTemplateStyles(templateName, template);
+    // Validar que el template tenga las propiedades necesarias
+    if (!template.style || !template.size) {
+      console.error('Invalid template structure:', template);
+      this.applyDefaultStyles();
+      return;
+    }
+    
+    try {
+      this.removeStyles();
+      this.createStyleElement();
+      this.injectTemplateStyles(templateName, template);
+    } catch (error) {
+      console.error('Error applying template:', error);
+      this.applyDefaultStyles();
+    }
   }
 
   removeStyles(): void {
@@ -58,11 +70,29 @@ export class PopupStyleManager {
   }
 
   private generateTemplateCSS(templateName: string, template: any): string {
-    const { size, style } = template;
+    // Validar y extraer propiedades de forma segura
+    const { size = { width: 400, minHeight: 280 }, style = {} } = template;
+    
+    // Valores por defecto para evitar errores
+    const safeStyle = {
+      background: style.background || '#ffffff',
+      borderColor: style.borderColor || '#e5e7eb',
+      textColor: style.textColor || '#374151',
+      fontFamily: style.fontFamily || '"Inter", "Helvetica Neue", Arial, sans-serif',
+      fontSize: style.fontSize || '12px',
+      header: {
+        background: style.header?.background || '#1f2937',
+        textColor: style.header?.textColor || '#ffffff',
+        padding: style.header?.padding || '8px 10px',
+        fontSize: style.header?.fontSize || '13px',
+        fontWeight: style.header?.fontWeight || '700',
+        borderBottom: style.header?.borderBottom || '1px solid #e5e7eb'
+      }
+    };
 
     return `
 /* ==========================================
-   POPUP STYLES - AP COMPACT
+   POPUP STYLES - ${templateName.toUpperCase()}
    ========================================== */
 
 .maplibregl-popup.popup-${templateName} {
@@ -75,7 +105,7 @@ export class PopupStyleManager {
    ========================= */
 .maplibregl-popup.popup-${templateName} .maplibregl-popup-content {
   width: 100%;
-  background: ${style.background};
+  background: ${safeStyle.background};
   border: 1px solid ${style.borderColor};
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);

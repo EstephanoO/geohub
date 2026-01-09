@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyPassword } from "@/src/auth/password";
-import { signJWT } from "@/src/auth/jwt";
-import { AUTH_CREDENTIALS } from "@/src/constants";
+import { verifyPassword } from "@/app/lib/auth/password";
+import { signJWT } from "@/app/lib/auth/jwt";
+import { AUTH_CREDENTIALS } from "@/app/lib/constants";
 
 const schema = z.object({
   email: z.string().email(),

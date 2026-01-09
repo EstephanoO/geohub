@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyJWT } from "@/src/auth/jwt";
+import { verifyJWT } from "@/app/lib/auth/jwt";
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

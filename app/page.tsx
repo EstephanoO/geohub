@@ -1,6 +1,6 @@
 "use client";
 
-import MapWithSidebar from "@/src/components/MapWithSidebar";
+import MapWithSidebar from "@/app/components/map/MapWithSidebar";
 
 export default function Home() {
   return (

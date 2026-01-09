@@ -1,4 +1,5 @@
 import { MapData, FileUploadHandler } from "../types";
+import { apiClient } from "@/app/services/api";
 
 export const fileUtils = {
   createFileUploader: (
@@ -53,22 +54,47 @@ export const fileUtils = {
     });
   },
 
-  saveMapData: (mapData: any) => {
+  // 🔄 AHORA CONECTADO A TU API FASTIFY
+  saveMapData: async (mapData: any) => {
     try {
-      // Generate a simple ID for the map
-      const mapId = `map_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log("🚀 Enviando mapa a API Fastify:", mapData);
       
-      // In a real app, this would save to a database
-      // For now, just simulate saving
-      console.log("💾 Saving map data:", mapData);
-      console.log("🆔 Generated map ID:", mapId);
+      // Validar que tenemos datos para guardar
+      if (!mapData.name || !mapData.geoJson) {
+        return {
+          success: false,
+          error: "Faltan datos requeridos: nombre o GeoJSON"
+        };
+      }
+
+      // Convertir GeoJSON a Blob para subir
+      const geoJsonBlob = new Blob([JSON.stringify(mapData.geoJson)], {
+        type: 'application/json'
+      });
+      
+      // Crear archivo virtual
+      const geoJsonFile = new File([geoJsonBlob], `${mapData.name}.geojson`, {
+        type: 'application/json'
+      });
+
+      // 🌟 LLAMAR A TU API EXISTENTE
+      const result = await apiClient.uploadGeoJSON(
+        geoJsonFile,
+        mapData.name,
+        mapData.description
+      );
+
+      console.log("✅ Mapa guardado exitosamente:", result);
       
       return {
         success: true,
-        mapId: mapId
+        mapId: result.mapId,
+        featuresCount: result.featuresCount,
+        message: result.message
       };
+      
     } catch (error) {
-      console.error("❌ Error saving map:", error);
+      console.error("❌ Error guardando mapa en API:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Error desconocido al guardar el mapa"
@@ -76,14 +102,12 @@ export const fileUtils = {
     }
   },
 
-  redirectToMap: (mapId: string) => {
-    // In a real app, this would navigate to the map view
+  redirectToMap: (mapId: string | number) => {
     console.log("🔄 Redirecting to map:", mapId);
     window.location.href = `/admin/map/${mapId}`;
   },
 
   redirectToAdmin: () => {
-    // Redirect back to admin panel
     console.log("🔄 Redirecting to admin panel");
     window.location.href = "/admin";
   }

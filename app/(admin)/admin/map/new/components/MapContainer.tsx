@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useMapLibre } from "../hooks/useMap";
+import { PopupTemplate } from "../types";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 interface MapContainerProps {
@@ -9,6 +10,8 @@ interface MapContainerProps {
   geoJson?: any;
   qmlStyle?: any;
   popupTemplate?: string;
+  mapId?: string;
+  customTemplates?: PopupTemplate[];
 }
 
 export function MapContainer({
@@ -16,6 +19,8 @@ export function MapContainer({
   geoJson,
   qmlStyle,
   popupTemplate,
+  mapId,
+  customTemplates,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   useMapLibre(

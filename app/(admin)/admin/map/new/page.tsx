@@ -6,29 +6,43 @@ import { MapSidebar } from "./components/MapSidebar";
 import { MapContainer } from "./components/MapContainer";
 import { fileUtils } from "./utils/fileUtils";
 import { useQMLStyle } from "./hooks/useQMLStyle";
-import { Button } from "@/components/ui/button";
+import { popupTemplatesManager } from "./utils/popupTemplatesManager";
+import { Button } from "@/app/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function NewMapPage() {
   const { mapData, updateMapData } = useMapData();
-  const [selectedPopupTemplate, setSelectedPopupTemplate] = React.useState("moderno");
-  const { 
-    loading: qmlLoading, 
-    error: qmlError, 
-    style: qmlStyle, 
+  const [selectedPopupTemplate, setSelectedPopupTemplate] =
+    React.useState("moderno");
+  const {
+    loading: qmlLoading,
+    error: qmlError,
+    style: qmlStyle,
     loadQMLFile,
     applyStylesToMap,
-    clearStyles 
+    clearStyles,
   } = useQMLStyle();
+
+  // Obtener templates personalizados para el mapa actual
+  const getCustomTemplates = () => {
+    if (mapData.id && typeof window !== 'undefined') {
+      popupTemplatesManager.setMapId(mapData.id);
+      return popupTemplatesManager.getCustomTemplates();
+    }
+    return [];
+  };
+
+  // Manejar cambios de template del popup
+  const handlePopupTemplateChange = (template: string) => {
+    setSelectedPopupTemplate(template);
+  };
 
   const handleGeoJsonUpload = fileUtils.createFileUploader((file) => {
     if (file) {
-      fileUtils
-        .readGeoJSONFile(file)
-        .then((geoJson) => {
-          updateMapData({ geoJson });
-        });
+      fileUtils.readGeoJSONFile(file).then((geoJson) => {
+        updateMapData({ geoJson });
+      });
     }
   });
 
@@ -38,9 +52,9 @@ export default function NewMapPage() {
     }
   });
 
-  const handleSaveMap = () => {
-    const result = fileUtils.saveMapData(mapData);
-    
+  const handleSaveMap = async () => {
+    const result = await fileUtils.saveMapData(mapData);
+
     if (result.success && result.mapId) {
       alert(`Mapa "${mapData.name}" guardado con ID: ${result.mapId}`);
       fileUtils.redirectToMap(result.mapId);
@@ -54,22 +68,22 @@ export default function NewMapPage() {
   };
 
   return (
-    <div className="h-screen bg-background flex">
-      {/* Simple Header */}
-      <div className="absolute top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur border-b border-border/40">
-        <div className="flex h-14 items-center justify-between px-4">
-          <div className="flex items-center space-x-4">
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header fijo */}
+      <header className="h-14 shrink-0 border-b border-border/40 bg-background/95 backdrop-blur z-40">
+        <div className="flex h-full items-center justify-between px-4">
+          <div className="flex items-center gap-3">
             <Link href="/admin">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Panel
               </Button>
             </Link>
-            <span className="text-sm font-medium text-foreground">Crear Nuevo Mapa</span>
+            <span className="text-sm font-medium">Crear nuevo mapa</span>
           </div>
 
-          <Button 
-            variant="gold" 
+          <Button
+            variant="gold"
             size="sm"
             onClick={handleSaveMap}
             disabled={!mapData.name.trim() || !mapData.geoJson}
@@ -77,11 +91,12 @@ export default function NewMapPage() {
             Guardar
           </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="flex flex-1 pt-14">
+      {/* Contenido */}
+      <main className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className="w-96 bg-background border-r border-border/40 overflow-y-auto">
+        <div className="w-[360px] shrink-0 border-r border-border/40">
           <MapSidebar
             mapData={mapData}
             onMapDataChange={updateMapData}
@@ -92,29 +107,32 @@ export default function NewMapPage() {
             qmlStyle={qmlStyle}
             qmlLoading={qmlLoading}
             qmlError={qmlError}
+            selectedPopupTemplate={selectedPopupTemplate}
+            onPopupTemplateChange={handlePopupTemplateChange}
           />
         </div>
 
-        {/* Map */}
-        <div className="flex-1 relative">
-          <MapContainer 
-            className="h-full" 
-            geoJson={mapData.geoJson} 
-            qmlStyle={qmlStyle} 
+        {/* Mapa */}
+        <section className="relative flex-1">
+          <MapContainer
+            className="h-full"
+            geoJson={mapData.geoJson}
+            qmlStyle={qmlStyle}
             popupTemplate={selectedPopupTemplate}
+            mapId={mapData.id}
+            customTemplates={getCustomTemplates()}
           />
-          
+
           {!mapData.geoJson && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-              <div className="text-center space-y-4">
-                <div className="text-muted-foreground">
-                  Sube un archivo GeoJSON para visualizar el mapa
-                </div>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Sube un archivo GeoJSON para visualizar el mapa
+              </p>
             </div>
           )}
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
+

@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Test Point",
+        "type": "test"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-77.0365, 38.8977]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Test Polygon",
+        "area": 1000
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-77.0365, 38.8977],
+          [-77.0365, 38.8987],
+          [-77.0355, 38.8987],
+          [-77.0355, 38.8977],
+          [-77.0365, 38.8977]
+        ]]
+      }
+    }
+  ]
+}

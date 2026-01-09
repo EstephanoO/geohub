@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import MapWithSidebar from "@/src/components/MapWithSidebar";
+import MapWithSidebar from "@/app/components/map/MapWithSidebar";
 
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyJWT } from "@/src/auth/jwt";
+import { verifyJWT } from "@/app/lib/auth/jwt";
 
 export async function GET(req: Request) {
   // Get token from cookies instead of headers
