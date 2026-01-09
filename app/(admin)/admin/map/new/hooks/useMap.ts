@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import maplibregl from "maplibre-gl";
 import { MapData, MapConfig } from "../types";
+import { applyPopupStyles } from "../utils/popupStyles";
 
 /* =========================
    MAP CONFIG
@@ -112,6 +113,9 @@ export function useMapLibre(
       maxWidth: "480px",
       className: `map-popup popup-${popupTemplate}`,
     });
+
+    // Aplicar estilos específicos del template
+    applyPopupStyles(popupTemplate);
 
     mapRef.current = map;
 
