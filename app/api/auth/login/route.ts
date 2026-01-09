@@ -19,14 +19,13 @@ export async function POST(req: Request) {
 
   const { email, password } = parsed.data;
 
-  if (email !== process.env.ADMIN_EMAIL) {
+  // Email hardcoded para desarrollo
+  if (email !== "admin@geohub.com") {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const valid = verifyPassword(
-    password,
-    process.env.ADMIN_PASSWORD!
-  );
+  // Password hardcoded sin bcrypt para desarrollo
+  const valid = password === "admin123";
 
   if (!valid) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
