@@ -1,0 +1,376 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import maplibregl from "maplibre-gl";
+import { MapData, MapConfig } from "../types";
+
+const DEFAULT_CONFIG: MapConfig = {
+  center: [-74.006, 40.7128],
+  zoom: 3,
+  pitch: 0,
+  bearing: 0,
+};
+
+function applyDefaultStyles(map: maplibregl.Map, sourceId: string) {
+  // Add fill layer for polygons
+  map.addLayer({
+    id: sourceId + "-fill",
+    type: "fill",
+    source: sourceId,
+    filter: ["==", "$type", "Polygon"],
+    paint: {
+      "fill-color": "#3b82f6",
+      "fill-opacity": 0.5,
+    },
+  });
+
+  // Add outline layer for polygons and lines
+  map.addLayer({
+    id: sourceId + "-outline",
+    type: "line",
+    source: sourceId,
+    filter: ["any", ["==", "$type", "Polygon"], ["==", "$type", "LineString"]],
+    paint: {
+      "line-color": "#1e40af",
+      "line-width": 2,
+    },
+  });
+
+  // Add circle layer for points
+  map.addLayer({
+    id: sourceId + "-points",
+    type: "circle",
+    source: sourceId,
+    filter: ["==", "$type", "Point"],
+    paint: {
+      "circle-radius": 5,
+      "circle-color": "#ef4444",
+      "circle-stroke-color": "#991b1b",
+      "circle-stroke-width": 2,
+    },
+  });
+}
+
+function applyQMLStyles(map: maplibregl.Map, sourceId: string, styles: any) {
+  try {
+    // Importamos el parser para usar su método applyStylesToMap que ya está correctamente implementado
+    const { QMLStyleParser } = require('../utils/qmlStyleParser');
+    const parser = new QMLStyleParser();
+    
+    console.log("🎨 Using QMLStyleParser.applyStylesToMap for proper outline width support");
+    
+    // Usamos el método del parser que ya crea las capas line con grosor real del QML
+    parser.applyStylesToMap(map, sourceId, styles);
+  } catch (error) {
+    console.error("❌ Error applying QML styles:", error);
+    // Fallback to default styles
+    applyDefaultStyles(map, sourceId);
+  }
+}
+
+export function useMapLibre(
+  containerRef: React.RefObject<HTMLDivElement>, 
+  geoJson?: any,
+  qmlStyle?: any
+) {
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const geoJsonSourceRef = useRef<string>("geojson-source");
+  const popupRef = useRef<maplibregl.Popup | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: 'background',
+            type: 'background',
+            paint: {
+              'background-color': '#f8fafc'
+            }
+          }
+        ],
+      },
+      ...DEFAULT_CONFIG,
+    });
+
+    mapRef.current = map;
+
+    const nav = new maplibregl.NavigationControl();
+    map.addControl(nav, "top-left");
+
+    // Create popup with enhanced options for better visibility
+    popupRef.current = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      className: "map-popup",
+      offset: [0, -10],
+      anchor: 'bottom'
+    });
+
+    return () => {
+      if (popupRef.current) {
+        popupRef.current.remove();
+      }
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [containerRef]);
+
+  useEffect(() => {
+    if (!mapRef.current || !geoJson) return;
+
+    const map = mapRef.current;
+    
+    // Remove existing layers first - FIX: remove ALL layers before removing source
+    const layersToRemove = [
+      geoJsonSourceRef.current + "-fill",
+      geoJsonSourceRef.current + "-outline", 
+      geoJsonSourceRef.current + "-points"
+    ];
+    
+    // Remove ALL existing categorized layers (cleanup from previous QMLs)
+    // Parser creates: {sourceId}-cat-{layerId} where layerId comes from GeoStyler
+    for (let i = 0; i < 20; i++) { // Clean up up to 20 categories
+      for (let j = 0; j < 10; j++) { // Clean up up to 10 layers per category
+        const layerId = `${geoJsonSourceRef.current}-cat-r${i}_sy${j}_st${j === 0 ? '0' : '1'}`;
+        
+        if (map.getLayer(layerId)) {
+          layersToRemove.push(layerId);
+        }
+      }
+    }
+    
+    // Remove all layers first
+    layersToRemove.forEach(layerId => {
+      if (map.getLayer(layerId)) {
+        map.removeLayer(layerId);
+      }
+    });
+    
+    // Then remove the source
+    if (map.getSource(geoJsonSourceRef.current)) {
+      map.removeSource(geoJsonSourceRef.current);
+    }
+
+    // Add GeoJSON source
+    map.addSource(geoJsonSourceRef.current, {
+      type: "geojson",
+      data: geoJson,
+    });
+
+    // Apply QML styles if available, otherwise use default styles
+    if (qmlStyle) {
+      console.log("🎨 Applying QML styles to GeoJSON layers");
+      applyQMLStyles(map, geoJsonSourceRef.current, qmlStyle);
+    } else {
+      console.log("🎨 Using default styles for GeoJSON layers");
+      applyDefaultStyles(map, geoJsonSourceRef.current);
+    }
+
+    // Add hover popup functionality with dynamic layer detection
+    console.log("🔍 Setting up hover popup functionality...");
+    
+    // Get ALL layers that use our geojson source (works for both default and QML styles)
+    const getAllInteractiveLayers = (map: maplibregl.Map, sourceId: string): string[] => {
+      const layers: string[] = [];
+      const allLayers = map.getStyle().layers || [];
+      
+      console.log("📋 All available layers:", allLayers.map(l => l.id));
+      
+      allLayers.forEach(layer => {
+        if ('source' in layer && layer.source === sourceId) {
+          layers.push(layer.id);
+          console.log(`✅ Found interactive layer: ${layer.id} (type: ${layer.type})`);
+        }
+      });
+      
+      console.log(`🎯 Found ${layers.length} layers for source: ${sourceId}`);
+      return layers;
+    };
+
+    const layers = getAllInteractiveLayers(map, geoJsonSourceRef.current);
+    
+    // Event handlers defined once for better performance
+    const handleMouseEnter = (e: any) => {
+      console.log("🖱️ Mouse enter event triggered on layer:", e.features?.[0]?.layer?.id);
+      
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        const coordinates = e.lngLat;
+        
+        console.log("📦 Feature data:", feature);
+        
+        let popupContent = '';
+        if (feature.properties) {
+          popupContent = Object.entries(feature.properties)
+            .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+            .join('<br>');
+        } else {
+          popupContent = 'Feature (no properties)';
+        }
+        
+        console.log("🎯 Popup content:", popupContent);
+        
+        if (popupRef.current) {
+          // Create a very visible test popup
+          const testContent = `<div style="background: red; color: white; padding: 20px; border: 3px solid blue; font-size: 16px; font-weight: bold;">TEST POPUP<br/>${popupContent}</div>`;
+          popupRef.current.setLngLat(coordinates).setHTML(testContent).addTo(map);
+          console.log("✅ Test popup added to map");
+          
+          // Debug immediately and after delay
+          const popupElement = popupRef.current?.getElement();
+          if (popupElement) {
+            console.log("🔍 Popup element found:", popupElement);
+            console.log("🔍 Popup HTML:", popupElement.outerHTML);
+            console.log("🔍 Popup parent:", popupElement.parentElement);
+            
+            setTimeout(() => {
+              console.log("🔍 Popup styles after timeout:", {
+                display: getComputedStyle(popupElement).display,
+                visibility: getComputedStyle(popupElement).visibility,
+                opacity: getComputedStyle(popupElement).opacity,
+                zIndex: getComputedStyle(popupElement).zIndex,
+                position: getComputedStyle(popupElement).position
+              });
+            }, 50);
+          } else {
+            console.log("❌ Popup element not found immediately!");
+          }
+        }
+      } else {
+        console.log("⚠️ No features found in event");
+      }
+    };
+
+    const handleMouseLeave = () => {
+      console.log("🖱️ Mouse leave event triggered");
+      if (popupRef.current) {
+        popupRef.current.remove();
+        console.log("✅ Popup removed from map");
+      }
+    };
+
+    const handleMouseLeave = () => {
+      console.log("🖱️ Mouse leave event triggered");
+        if (popupRef.current) {
+          // Try a simple test popup first
+          const testContent = `<div style="background: red; color: white; padding: 10px; border: 2px solid blue;">TEST POPUP: ${popupContent}</div>`;
+          popupRef.current.setLngLat(coordinates).setHTML(testContent).addTo(map);
+          console.log("✅ Test popup added to map");
+          
+          // Debug immediately
+          const popupElement = popupRef.current?.getElement();
+          if (popupElement) {
+            console.log("🔍 Popup element found:", popupElement);
+            console.log("🔍 Popup HTML:", popupElement.outerHTML);
+            console.log("🔍 Popup parent:", popupElement.parentElement);
+          } else {
+            console.log("❌ Popup element not found immediately!");
+          }
+        }
+    };
+
+    // Add event listeners to all found layers
+    layers.forEach(layerId => {
+      console.log(`🔗 Adding hover events to layer: ${layerId}`);
+      
+      map.on('mouseenter', layerId, handleMouseEnter);
+      map.on('mouseleave', layerId, handleMouseLeave);
+    });
+
+    console.log(`🎉 Hover popup setup complete for ${layers.length} layers`);
+
+    // Fit map to GeoJSON bounds
+    const bounds = new maplibregl.LngLatBounds();
+    let hasValidBounds = false;
+    
+    const isValidCoordinate = (coord: number[]): boolean => {
+      if (!Array.isArray(coord) || coord.length < 2) return false;
+      const [lng, lat] = coord;
+      return lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90 && 
+             !isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat);
+    };
+    
+    const collectBounds = (coordinates: any) => {
+      if (Array.isArray(coordinates[0])) {
+        if (typeof coordinates[0] === 'number' && coordinates.length >= 2) {
+          // This is a coordinate pair [lng, lat]
+          if (isValidCoordinate(coordinates)) {
+            bounds.extend([coordinates[0], coordinates[1]] as [number, number]);
+            hasValidBounds = true;
+          }
+        } else {
+          // This is a nested array, recurse
+          coordinates.forEach(collectBounds);
+        }
+      } else if (Array.isArray(coordinates) && coordinates.length >= 2) {
+        // Single coordinate pair
+        if (isValidCoordinate(coordinates)) {
+          bounds.extend([coordinates[0], coordinates[1]] as [number, number]);
+          hasValidBounds = true;
+        }
+      }
+    };
+
+    if (geoJson.type === "FeatureCollection") {
+      geoJson.features.forEach((feature: any) => {
+        if (feature.geometry?.coordinates) {
+          collectBounds(feature.geometry.coordinates);
+        }
+      });
+    } else if (geoJson.geometry?.coordinates) {
+      collectBounds(geoJson.geometry.coordinates);
+    }
+
+    if (hasValidBounds && !bounds.isEmpty()) {
+      map.fitBounds(bounds, { padding: 50 });
+    } else {
+      console.warn("⚠️ No se encontraron coordenadas válidas para ajustar el mapa");
+    }
+  }, [geoJson, qmlStyle]);
+
+  return mapRef;
+}
+
+export function useMapData(initialData?: Partial<MapData>) {
+  const [mapData, setMapData] = useState<MapData>({
+    id: "",
+    name: "",
+    description: "",
+    tags: [],
+    geoJson: undefined,
+    qml: undefined,
+    isVisible: true,
+    createdDate: new Date().toISOString().split("T")[0],
+    ...initialData,
+  });
+
+  const updateMapData = (updates: Partial<MapData>) => {
+    setMapData((prev: MapData) => ({ ...prev, ...updates }));
+  };
+
+  const resetMapData = () => {
+    setMapData({
+      id: "",
+      name: "",
+      description: "",
+      tags: [],
+      geoJson: undefined,
+      qml: undefined,
+      isVisible: true,
+      createdDate: new Date().toISOString().split("T")[0],
+    });
+  };
+
+  return {
+    mapData,
+    setMapData,
+    updateMapData,
+    resetMapData,
+  };
+}

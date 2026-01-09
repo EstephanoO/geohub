@@ -1,26 +1,247 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* =========================================================
+   ROOT THEME — Negro / Azul / Dorado (ENTERPRISE)
+========================================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(0.05 0 0);
+  --foreground: oklch(0.95 0 0);
+  --radius: 0.75rem;
+
+  --card: oklch(0.08 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+
+  --primary: oklch(0.35 0.15 240);
+  --primary-foreground: oklch(0.98 0 0);
+
+  --secondary: oklch(0.45 0.12 230);
+  --secondary-foreground: oklch(0.98 0 0);
+
+  --accent: oklch(0.75 0.18 85);
+  --accent-foreground: oklch(0.05 0 0);
+
+  --muted: oklch(0.12 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+
+  --destructive: oklch(0.65 0.22 20);
+  --warning: oklch(0.78 0.2 60);
+  --success: oklch(0.65 0.18 150);
+
+  --border: oklch(0.18 0 0);
+  --input: oklch(0.15 0 0);
+  --ring: oklch(0.35 0.15 240);
 }
 
+/* =========================================================
+   TAILWIND THEME BINDING
+========================================================= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* =========================================================
+   BASE
+========================================================= */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
 }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply antialiased;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* =========================================================
+   MAP POPUP — ENTERPRISE / GOVERNMENT GRADE
+========================================================= */
+
+.maplibregl-popup {
+  z-index: 9999;
+}
+
+.maplibregl-popup-content {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- CARD ---------- */
+.popup-card {
+  width: 440px;
+  background: linear-gradient(180deg, oklch(0.09 0 0), oklch(0.07 0 0));
+  color: var(--foreground);
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+/* ---------- HEADER ---------- */
+.popup-header {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(
+    135deg,
+    oklch(0.35 0.15 240),
+    oklch(0.28 0.12 230)
+  );
+  border-bottom: 1px solid oklch(1 0 0 / 0.08);
+}
+
+.popup-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.popup-subtitle {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+/* ---------- SECTIONS ---------- */
+.popup-section {
+  padding: 0.9rem 1.25rem;
+}
+
+.popup-section-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 0.5rem;
+}
+
+.popup-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+
+/* ---------- TABLE ---------- */
+.popup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.popup-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 6px 0;
+  width: 45%;
+}
+
+.popup-table td {
+  text-align: right;
+  font-weight: 500;
+  padding: 6px 0;
+  color: var(--foreground);
+}
+
+/* compact variant */
+.popup-table.compact th,
+.popup-table.compact td {
+  padding: 4px 0;
+  font-size: 0.7rem;
+}
+
+/* ---------- FOOTER / MUTED ---------- */
+.popup-muted {
+  background: oklch(0.06 0 0);
+}
+
+/* =========================================================
+   LIGHT MODE OVERRIDES
+========================================================= */
+@media (prefers-color-scheme: light) {
+  :root:not(.dark) {
+    --background: oklch(0.98 0 0);
+    --foreground: oklch(0.08 0 0);
+    --card: oklch(0.96 0 0);
+    --card-foreground: oklch(0.08 0 0);
+    --popover: oklch(0.96 0 0);
+    --popover-foreground: oklch(0.08 0 0);
+    --border: oklch(0.88 0 0);
+    --muted: oklch(0.92 0 0);
+    --muted-foreground: oklch(0.45 0 0);
+  }
+
+  .popup-card {
+    background: linear-gradient(180deg, oklch(0.98 0 0), oklch(0.95 0 0));
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  .popup-header {
+    color: white;
+  }
+}
+
+/* =========================================================
+   UTILITIES
+========================================================= */
+@layer utilities {
+  .shadow-glow {
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.3);
+  }
+
+  .shadow-blue-glow {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+}
+
