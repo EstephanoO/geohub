@@ -103,16 +103,6 @@ body {
 }
 
 /* =========================================================
-   MAP POPUP — ENTERPRISE / GOVERNMENT GRADE
-========================================================= */
-
-.maplibregl-popup {
-  z-index: 9999;
-}
-
-.maplibregl-popup-content {
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-}
+   MAP POPUP — CONTROLADO DESDE popupStyles.ts
+   ========================================================= */
 

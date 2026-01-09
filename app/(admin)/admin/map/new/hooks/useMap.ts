@@ -179,18 +179,47 @@ export function useMapLibre(
 
       const props = feature.properties || {};
 
-      const row = (label: string, value: any) => `
-        <tr>
-          <th>${label}</th>
-          <td>${value ?? "—"}</td>
-        </tr>
-      `;
+      const row = (label: string, value: any) => {
+        if (value === undefined || value === null || value === "") return "";
+        return `
+          <tr>
+            <th>${label}</th>
+            <td>${value}</td>
+          </tr>
+        `;
+      };
 
-      const title =
-        props.DISTRITO ||
-        props.NOMBRE ||
-        props.name ||
-        "Información territorial";
+      // Determinar título basado en datos disponibles
+      const title = props.DISTRITO || props.DISTRICT || props.NOMBRE || props.name || "Información territorial";
+
+      // Generar HTML dinámico solo con datos disponibles
+      let contentRows = "";
+
+      // Recorrer todas las propiedades y mostrarlas
+      Object.entries(props).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          // Formatear nombre de la propiedad para mejor lectura
+          let label = key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+          
+          // Traducciones comunes
+          const translations: { [key: string]: string } = {
+            "departamen": "Departamento",
+            "departamento": "Departamento",
+            "provincia": "Provincia", 
+            "distrito": "Distrito",
+            "macro": "Macro Región",
+            "codigo": "Código",
+            "id": "ID",
+            "poblacion": "Población",
+            "area": "Área",
+            "densidad": "Densidad",
+            "indice": "Índice"
+          };
+          
+          label = translations[key.toLowerCase()] || label;
+          contentRows += row(label, value);
+        }
+      });
 
       const html = `
         <div class="popup-card popup-${popupTemplate}">
@@ -198,40 +227,15 @@ export function useMapLibre(
           <!-- HEADER -->
           <div class="popup-header">
             <div class="popup-title">${title}</div>
-            <div class="popup-subtitle">Resumen estadístico</div>
-          </div>
-
-          <!-- SECTION 1 -->
-          <div class="popup-section">
-            <div class="popup-section-title">Identificación</div>
-            <table class="popup-table">
-              ${row("Código", props.CODIGO || props.id)}
-              ${row("Departamento", props.DEPARTAMENTO)}
-              ${row("Provincia", props.PROVINCIA)}
-              ${row("Distrito", props.DISTRITO)}
-            </table>
+            <div class="popup-subtitle">Datos disponibles</div>
           </div>
 
           <div class="popup-divider"></div>
 
-          <!-- SECTION 2 -->
+          <!-- CONTENT DINÁMICO -->
           <div class="popup-section">
-            <div class="popup-section-title">Indicadores</div>
             <table class="popup-table">
-              ${row("Población", props.POBLACION)}
-              ${row("Área (km²)", props.AREA)}
-              ${row("Densidad", props.DENSIDAD)}
-              ${row("Índice social", props.INDICE)}
-            </table>
-          </div>
-
-          <div class="popup-divider"></div>
-
-          <!-- SECTION 3 -->
-          <div class="popup-section popup-muted">
-            <table class="popup-table compact">
-              ${row("Fuente", "Datos oficiales")}
-              ${row("Año", new Date().getFullYear())}
+              ${contentRows}
             </table>
           </div>
 
