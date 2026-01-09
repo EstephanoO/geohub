@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyPassword } from "@/src/auth/password";
 import { signJWT } from "@/src/auth/jwt";
-import { redirect } from "next/navigation";
+import { AUTH_CREDENTIALS } from "@/src/constants";
 
 const schema = z.object({
   email: z.string().email(),
@@ -19,13 +19,12 @@ export async function POST(req: Request) {
 
   const { email, password } = parsed.data;
 
-  // Email hardcoded para desarrollo
-  if (email !== "admin@geohub.com") {
+  // Verificar credenciales desde constants
+  if (email !== AUTH_CREDENTIALS.email) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  // Password hardcoded sin bcrypt para desarrollo
-  const valid = password === "admin123";
+  const valid = verifyPassword(password, AUTH_CREDENTIALS.password);
 
   if (!valid) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
